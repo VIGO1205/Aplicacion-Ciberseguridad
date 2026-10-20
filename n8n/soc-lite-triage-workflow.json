@@ -306,7 +306,7 @@
       "parameters": {
         "select": "channel",
         "channelId": "#soc-alertas",
-        "text": "=🚨 *Alerta {{ $('4. Insertar alerta (idempotente)').item.json.severity }} triada*\\n*{{ $('4. Insertar alerta (idempotente)').item.json.title }}*\\nRiesgo: {{ $json.risk_score }}/100 · Veredicto: {{ $json.verdict }}\\nHost: {{ $('4. Insertar alerta (idempotente)').item.json.hostname || '—' }} · IP: {{ $('4. Insertar alerta (idempotente)').item.json.source_ip || '—' }}\\nAcciones: {{ ($('6. Triaje LangChain').item.json.recommended_actions || []).length }} recomendadas\\n<http://dashboard.soc-lite.local/alerts/{{ $('4. Insertar alerta (idempotente)').item.json.id }}|Abrir en SOC-Lite>",
+        "text": "={{ ['🚨 *Alerta ' + $('7. Guardar triaje').item.json.recommended_severity + ' triada*', '*' + $('4. Insertar alerta (idempotente)').item.json.title + '*', 'Riesgo: ' + $('7. Guardar triaje').item.json.risk_score + '/100 · Veredicto: ' + $('7. Guardar triaje').item.json.verdict, 'Host: ' + ($('4. Insertar alerta (idempotente)').item.json.hostname || '—') + ' · IP: ' + ($('4. Insertar alerta (idempotente)').item.json.source_ip || '—'), 'Acciones: ' + ($('6. Triaje LangChain').item.json.recommended_actions || []).length + ' recomendadas', 'ID: ' + $('4. Insertar alerta (idempotente)').item.json.id].join(String.fromCharCode(10)) }}",
         "otherOptions": {}
       },
       "id": "b1a1f1a0-0010-4d1a-9a01-000000000010",
