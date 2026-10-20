@@ -210,7 +210,19 @@ Verificaciones realizadas en este repositorio:
 2. Importar `n8n/soc-lite-triage-workflow.json`.
 3. Crear la credencial PostgreSQL del workflow con host `db`, puerto `5432`, base y usuario definidos por `POSTGRES_DB` y `POSTGRES_USER`, y la contraseña `POSTGRES_PASSWORD`. Esta es la base de SOC-Lite; `n8n-db` almacena únicamente los datos internos de n8n.
 4. Configurar las credenciales Slack y osTicket si se usarán esas integraciones. `SOC_AI_INTERNAL_KEY` se toma automáticamente de `TRIAGE_API_KEY` en Compose.
-5. Revisar las URL de Slack, osTicket y del dashboard que aparecen como ejemplos en el workflow; después activarlo y apuntar Wazuh/OPNsense a `POST /webhook/soc-lite-alert`.
+5. Revisar las credenciales y URL internas del workflow; después activarlo y apuntar Wazuh/OPNsense a `POST /webhook/soc-lite-alert`.
+
+### osTicket local para el nodo 11
+
+osTicket es opcional. La imagen `rinkp/osticket-dockerized:1.18.4` es comunitaria; los datos y adjuntos se guardan en volúmenes Docker. Esta integración usa la API de tickets de osTicket, no HTTP Basic.
+
+1. Definir en `.env` los valores `OSTICKET_DB_PASSWORD`, `OSTICKET_SECRET_SALT`, `OSTICKET_ADMIN_EMAIL`, `OSTICKET_ADMIN_PASSWORD` y `OSTICKET_REQUESTER_EMAIL`. Usar contraseñas aleatorias propias y no subir `.env` al repositorio.
+2. Iniciar los servicios con `docker compose -f docker-compose.yml -f docker-compose.osticket.yml up -d osticket n8n` y abrir `http://localhost:8088/scp/`. Entrar con `OSTICKET_ADMIN_EMAIL` y `OSTICKET_ADMIN_PASSWORD` de `.env`. En el primer acceso, osTicket obliga a cambiar la contraseña; actualizar después `OSTICKET_ADMIN_PASSWORD` en `.env` para conservar la referencia local.
+3. En el panel de administración de osTicket, ir a **Manage → API Keys → Add New API Key**. Crear una clave para la IP de origen `172.30.91.10` (IP fija de n8n en la red de osTicket), permitir **Create Tickets**, guardar y copiar la clave. La clave está asociada a esa IP.
+4. En n8n, crear una credencial **Header Auth** para el nodo 11: **Name** `X-API-Key`, **Value** la clave recién creada. Configurar el nodo como **HTTP Request**, método **POST**, URL `http://osticket/api/tickets.json`, autenticación **Generic Credential Type → Header Auth**, cuerpo **JSON**. El archivo `n8n/soc-lite-triage-workflow.json` contiene el cuerpo compatible con la API de osTicket; si el flujo ya estaba importado, actualizar manualmente el nodo 11 con esos valores.
+5. Probar el nodo con una alerta alta o crítica nueva y comprobar que aparece un ticket en osTicket. Activar el nodo 11 cuando la prueba funcione. Las alertas medias y bajas siguen la ruta directa de auditoría.
+
+Si n8n no se inició con ambos archivos Compose, no resolverá el nombre interno `osticket`. Conservar la IP fija `172.30.91.10` al recrear n8n para que la clave API siga siendo válida. No exponer el puerto 8088 fuera del equipo sin configurar HTTPS y autenticación apropiada.
 
 El nodo 7 envía el resultado tanto al nodo 8 (enriquecimiento) como al 9 (enrutamiento). Si se importó una versión anterior del flujo, conecte 7 → 9 y quite la conexión 8 → 9; así el enrutamiento recibe `recommended_severity` aunque el enriquecimiento no genere filas.
 

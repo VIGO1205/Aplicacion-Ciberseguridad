@@ -1,0 +1,67 @@
+services:
+  n8n:
+    environment:
+      OSTICKET_REQUESTER_EMAIL: ${OSTICKET_REQUESTER_EMAIL:-soc-lite@example.org}
+    networks:
+      default:
+      osticket_net:
+        ipv4_address: 172.30.91.10
+
+  osticket-db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+      MARIADB_DATABASE: osticket
+      MARIADB_USER: osticket
+      MARIADB_PASSWORD: ${OSTICKET_DB_PASSWORD:?Configure OSTICKET_DB_PASSWORD in .env}
+    volumes:
+      - osticket_db_data:/var/lib/mysql
+    networks:
+      - osticket_net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  osticket:
+    image: rinkp/osticket-dockerized:1.18.4
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/scp/login.php"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    environment:
+      OST_SECRET_SALT: ${OSTICKET_SECRET_SALT:?Configure OSTICKET_SECRET_SALT in .env}
+      OST_ADMIN_EMAIL: ${OSTICKET_ADMIN_EMAIL:-admin@example.org}
+      OST_ADMIN_PASSWD: ${OSTICKET_ADMIN_PASSWORD:?Configure OSTICKET_ADMIN_PASSWORD in .env}
+      OST_HELPDESK_URL: http://localhost:${OSTICKET_HOST_PORT:-8088}/
+      OST_DBTYPE: mysql
+      OST_DBHOST: osticket-db
+      OST_DBNAME: osticket
+      OST_DBUSER: osticket
+      OST_DBPASS: ${OSTICKET_DB_PASSWORD:?Configure OSTICKET_DB_PASSWORD in .env}
+      OST_TABLE_PREFIX: ost_
+      OST_PLUGINS_STORAGEFS_PATH: /var/www/attachments
+    volumes:
+      - osticket_attachments:/var/www/attachments
+    ports:
+      - "127.0.0.1:${OSTICKET_HOST_PORT:-8088}:80"
+    networks:
+      - osticket_net
+    depends_on:
+      osticket-db:
+        condition: service_healthy
+
+volumes:
+  osticket_db_data:
+  osticket_attachments:
+
+networks:
+  osticket_net:
+    ipam:
+      config:
+        - subnet: 172.30.91.0/24

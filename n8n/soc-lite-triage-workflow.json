@@ -325,12 +325,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://osticket.example.com/api/v1/tickets",
+        "url": "http://osticket/api/tickets.json",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpBasicAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ subject: 'SOC-Lite · ' + $('4. Insertar alerta (idempotente)').item.json.title, message: $('6. Triaje LangChain').item.json.summary, priority: $('4. Insertar alerta (idempotente)').item.json.severity, source: 'SOC-Lite', alert_id: $('4. Insertar alerta (idempotente)').item.json.id, risk_score: $('7. Guardar triaje').item.json.risk_score }) }}",
+        "jsonBody": "={{ JSON.stringify({ alert: false, autorespond: false, source: 'API', name: 'SOC-Lite', email: $env.OSTICKET_REQUESTER_EMAIL, subject: 'SOC-Lite · ' + $('4. Insertar alerta (idempotente)').item.json.title, message: ['Alerta ID: ' + $('4. Insertar alerta (idempotente)').item.json.id, 'Severidad recomendada: ' + $('7. Guardar triaje').item.json.recommended_severity, 'Riesgo: ' + $('7. Guardar triaje').item.json.risk_score + '/100', 'Veredicto: ' + $('7. Guardar triaje').item.json.verdict, '', $('6. Triaje LangChain').item.json.summary].join(String.fromCharCode(10)) }) }}",
         "options": {}
       },
       "id": "b1a1f1a0-0011-4d1a-9a01-000000000011",
@@ -340,7 +340,7 @@
       "position": [1620, 120],
       "onError": "continueRegularOutput",
       "credentials": {
-        "httpBasicAuth": {
+        "httpHeaderAuth": {
           "id": "REEMPLAZAR_CREDENCIAL_OSTICKET",
           "name": "SOC-Lite osTicket"
         }

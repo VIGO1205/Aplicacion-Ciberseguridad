@@ -1192,7 +1192,7 @@ El archivo `n8n/soc-lite-triage-workflow.json` contiene 12 nodos funcionales + 1
 | 8 | Guardar enriquecimiento | PostgreSQL | Inserta `enrichment_data` desde el array del agente. | JSON → filas |
 | 9 | Enrutar por severidad | Switch | Ramas critical/high/medium/low/info. | severidad → rama |
 | 10 | Notificar Slack | Slack | Solo critical/high; `onError: continue`. | resumen → mensaje |
-| 11 | Crear ticket osTicket | HTTP | Ticket con resumen, riesgo y prioridad. | triaje → ticket |
+| 11 | Crear ticket osTicket | HTTP | Ticket con resumen, riesgo y severidad. | triaje → ticket |
 | 12 | Auditoría | PostgreSQL | Registra `TRIAGE` con actor n8n y execution id. | acción → fila |
 
 ### 5.2 Diagrama
@@ -1305,7 +1305,7 @@ ON CONFLICT (alert_id, provider, indicator) DO UPDATE SET …;
 1. n8n → Workflows → Import from File → `n8n/soc-lite-triage-workflow.json`.
 2. Crear credencial PostgreSQL `SOC-Lite PostgreSQL` y reemplazar `REEMPLAZAR_CREDENCIAL_POSTGRES`.
 3. Crear credencial Slack y reemplazar el ID.
-4. Crear credencial HTTP Basic para osTicket.
+4. Para osTicket, crear una clave API asociada a la IP de n8n y una credencial Header Auth en n8n con `X-API-Key`. Usar `POST http://osticket/api/tickets.json`. La instalación local opcional y la IP fija se describen en el README.
 5. En Docker Compose, `SOC_AI_INTERNAL_KEY` e `INTERNAL_API_KEY` reciben el valor de `TRIAGE_API_KEY`; en instalaciones externas deben configurarse manualmente.
 6. Ajustar `http://ai-service:8001` si el microservicio está en otro host.
 7. Activar el workflow y registrar la URL del webhook en Wazuh/OPNsense.
