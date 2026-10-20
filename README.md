@@ -46,7 +46,9 @@ Servicios:
 | http://localhost:8001/health | Salud del microservicio IA |
 | http://localhost:5678 | Editor n8n (solo desde el host) |
 
-El primer arranque crea el esquema y los datos demo desde `db/init/`. El backend verifica la semilla con `AUTO_SEED=true`. n8n usa su propia base PostgreSQL (`n8n-db`) y conserva su configuración y credenciales en volúmenes Docker. Su interfaz escucha solo en `127.0.0.1:5678`.
+El primer arranque crea el esquema y los datos demo desde `db/init/`. El backend verifica la semilla con `AUTO_SEED=true`. n8n usa su propia base PostgreSQL (`n8n-db`) y conserva su configuración y credenciales en volúmenes Docker. La interfaz web y n8n escuchan solo en `127.0.0.1` por defecto.
+
+Si el puerto local `5432` está ocupado o reservado, cambie `POSTGRES_HOST_PORT` en `.env` (por ejemplo, a `15432`). La conexión entre contenedores sigue usando `db:5432`.
 
 ### Modelo local opcional
 

@@ -129,7 +129,7 @@ flowchart LR
 
 | Componente | Puerto | Exposure | Función |
 |---|---|---|---|
-| `frontend` | 5173 dev / 8080 prod | Usuarios | SPA y proxy `/api`. |
+| `frontend` | 5173 dev / 8080 Compose | Solo localhost por defecto | SPA y proxy `/api`; un proxy HTTPS externo puede publicarlo después. |
 | `backend` | 8000 | API interna / proxy | API REST, RBAC, reportes, auditoría. |
 | `ai-service` | 8001 | Solo red interna | Triaje LangChain; no se publica a Internet. |
 | `db` | 5432 | Solo red interna / localhost | PostgreSQL. |
@@ -1480,7 +1480,7 @@ El flujo sigue las fases de preparación, detección/análisis, contención/erra
 
 - Docker Engine 24+ y Compose v2.
 - 4 vCPU, 16 GB RAM, 50 GB disco (mínimo demo).
-- Puertos 8080 (UI), 8000 (API), 5432 (solo local), 8001 (AI, solo local) y 5678 (n8n, solo local).
+- Puertos 8080 (UI), 8000 (API), 5432 (solo local, configurable con `POSTGRES_HOST_PORT`), 8001 (AI, solo local) y 5678 (n8n, solo local).
 - Opcional: GPU NVIDIA + Container Toolkit para Ollama.
 
 ### 9.2 Inicio rápido con Docker
