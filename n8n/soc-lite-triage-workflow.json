@@ -1,0 +1,553 @@
+{
+  "name": "SOC-Lite · Triaje automático de alertas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "soc-lite-alert",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "b1a1f1a0-0001-4d1a-9a01-000000000001",
+      "name": "1. Webhook Wazuh / OPNsense",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-620, 300],
+      "webhookId": "soc-lite-alert"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza Wazuh, OPNsense o un payload genérico.\nconst input = $input.first().json;\nconst body = (input.body && typeof input.body === 'object') ? input.body : input;\nconst rule = body.rule || {};\nconst agent = body.agent || {};\nconst data = body.data || {};\nconst level = Math.max(0, Math.min(15, Number(rule.level ?? body.rule_level ?? body.level ?? 5)));\nconst severity = level >= 12 ? 'critical' : level >= 9 ? 'high' : level >= 6 ? 'medium' : level >= 3 ? 'low' : 'info';\nconst source = body.source || (rule.id ? 'wazuh' : (body.src_ip || body.dest_ip) ? 'opnsense' : 'generic');\nconst title = String(rule.description || body.title || body.event || body.message || 'Alerta de seguridad').slice(0, 300);\nconst description = String(body.full_log || body.description || body.message || '').slice(0, 8000);\nconst srcip = data.srcip || body.src_ip || body.source_ip || null;\nconst dstip = data.dstip || body.dest_ip || body.destination_ip || null;\nconst hostname = agent.name || body.hostname || body.host || null;\nconst username = data.dstuser || data.srcuser || body.username || body.user || null;\nconst externalId = body.id || body.event_id || body.alert_id || null;\nconst occurredAt = body.timestamp || body['@timestamp'] || body.event_time || new Date().toISOString();\nconst parsed = new Date(occurredAt);\nconst iso = Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();\nconst bucket = Math.floor(new Date(iso).getTime() / 300000);\nconst material = [source, externalId || '', title.trim().toLowerCase(), srcip || '', hostname || '', bucket].join('|');\nlet hash = 1469598103934665603n;\nfor (const char of material) { hash ^= BigInt(char.codePointAt(0)); hash = BigInt.asUintN(64, hash * 1099511628211n); }\nconst fingerprint = hash.toString(16).padStart(16, '0') + '-' + bucket.toString(16);\nreturn [{ json: {\n  external_id: externalId,\n  fingerprint,\n  source,\n  title,\n  description,\n  rule_id: String(rule.id || body.rule_id || ''),\n  rule_level: level,\n  severity,\n  source_ip: srcip,\n  destination_ip: dstip,\n  hostname,\n  agent_name: hostname,\n  username,\n  mitre_techniques: Array.isArray(body.mitre) ? body.mitre : [],\n  tags: [source],\n  raw_payload: body,\n  received_at: iso\n} }];"
+      },
+      "id": "b1a1f1a0-0002-4d1a-9a01-000000000002",
+      "name": "2. Normalizar alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-severidad-media",
+              "leftValue": "={{ ['info','low','medium','high','critical'].indexOf($json.severity) >= 2 && !!$json.title && !!$json.fingerprint }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1a1f1a0-0003-4d1a-9a01-000000000003",
+      "name": "3. ¿Severidad ≥ media?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-180, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO alerts (\n  id, external_id, fingerprint, source, title, description, rule_id, rule_level, severity, status,\n  source_ip, destination_ip, hostname, agent_name, username, mitre_techniques, tags, raw_payload,\n  received_at, first_seen_at, last_seen_at, created_at, updated_at\n) VALUES (\n  gen_random_uuid(),\n  NULLIF('{{ $json.external_id }}', '')::varchar,\n  '{{ $json.fingerprint }}',\n  '{{ $json.source }}',\n  '{{ $json.title.replace(/'/g, \"''\") }}',\n  '{{ $json.description.replace(/'/g, \"''\") }}',\n  NULLIF('{{ $json.rule_id }}', '')::varchar,\n  {{ $json.rule_level }},\n  '{{ $json.severity }}',\n  'pending',\n  NULLIF('{{ $json.source_ip }}', '')::varchar,\n  NULLIF('{{ $json.destination_ip }}', '')::varchar,\n  NULLIF('{{ $json.hostname }}', '')::varchar,\n  NULLIF('{{ $json.agent_name }}', '')::varchar,\n  NULLIF('{{ $json.username }}', '')::varchar,\n  '{{ JSON.stringify($json.mitre_techniques).replace(/'/g, \"''\") }}'::jsonb,\n  '{{ JSON.stringify($json.tags).replace(/'/g, \"''\") }}'::jsonb,\n  '{{ JSON.stringify($json.raw_payload).replace(/'/g, \"''\") }}'::jsonb,\n  '{{ $json.received_at }}'::timestamptz,\n  '{{ $json.received_at }}'::timestamptz,\n  '{{ $json.received_at }}'::timestamptz,\n  now(), now()\n)\nON CONFLICT (fingerprint) DO NOTHING\nRETURNING id, fingerprint, severity, title, source_ip, hostname;",
+        "options": {}
+      },
+      "id": "b1a1f1a0-0004-4d1a-9a01-000000000004",
+      "name": "4. Insertar alerta (idempotente)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [40, 300],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR_CREDENCIAL_POSTGRES",
+          "name": "SOC-Lite PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-alerta-nueva",
+              "leftValue": "={{ !!$json.id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1a1f1a0-0005-4d1a-9a01-000000000005",
+      "name": "5. ¿Alerta nueva?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ai-service:8001/triage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Internal-Key",
+              "value": "={{ $env.SOC_AI_INTERNAL_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ...$('2. Normalizar alerta').item.json, alert_id: $json.id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "b1a1f1a0-0006-4d1a-9a01-000000000006",
+      "name": "6. Triaje LangChain",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 220],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH saved AS (\n  INSERT INTO triage_results (\n    id, alert_id, verdict, recommended_severity, confidence, risk_score, summary, reasoning,\n    recommended_actions, mitre_techniques, should_escalate, false_positive_reason, engine,\n    model_name, prompt_version, latency_ms, tokens_used, raw_response, created_at\n  ) VALUES (\n    gen_random_uuid(),\n    '{{ $('4. Insertar alerta (idempotente)').item.json.id }}'::uuid,\n    '{{ $json.verdict }}',\n    '{{ $json.recommended_severity }}',\n    {{ $json.confidence }},\n    {{ $json.risk_score }},\n    '{{ $json.summary.replace(/'/g, \"''\") }}',\n    '{{ ($json.reasoning || '').replace(/'/g, \"''\") }}',\n    '{{ JSON.stringify($json.recommended_actions || []).replace(/'/g, \"''\") }}'::jsonb,\n    '{{ JSON.stringify($json.mitre_techniques || []).replace(/'/g, \"''\") }}'::jsonb,\n    {{ $json.should_escalate ? 'true' : 'false' }},\n    NULLIF('{{ ($json.false_positive_reason || '').replace(/'/g, \"''\") }}', ''),\n    '{{ $json.engine }}',\n    '{{ $json.model_name }}',\n    '{{ $json.prompt_version }}',\n    {{ $json.latency_ms }},\n    {{ $json.tokens_used }},\n    '{{ JSON.stringify($json).replace(/'/g, \"''\") }}'::jsonb,\n    now()\n  )\n  ON CONFLICT (alert_id) DO UPDATE SET\n    verdict = EXCLUDED.verdict,\n    recommended_severity = EXCLUDED.recommended_severity,\n    confidence = EXCLUDED.confidence,\n    risk_score = EXCLUDED.risk_score,\n    summary = EXCLUDED.summary,\n    reasoning = EXCLUDED.reasoning,\n    recommended_actions = EXCLUDED.recommended_actions,\n    mitre_techniques = EXCLUDED.mitre_techniques,\n    should_escalate = EXCLUDED.should_escalate,\n    false_positive_reason = EXCLUDED.false_positive_reason,\n    engine = EXCLUDED.engine,\n    model_name = EXCLUDED.model_name,\n    prompt_version = EXCLUDED.prompt_version,\n    latency_ms = EXCLUDED.latency_ms,\n    tokens_used = EXCLUDED.tokens_used,\n    raw_response = EXCLUDED.raw_response\n  RETURNING alert_id, verdict, recommended_severity, risk_score\n), updated AS (\n  UPDATE alerts SET status = 'triaged',\n    mitre_techniques = '{{ JSON.stringify($json.mitre_techniques || []).replace(/'/g, \"''\") }}'::jsonb,\n    updated_at = now()\n  WHERE id = '{{ $('4. Insertar alerta (idempotente)').item.json.id }}'::uuid\n)\nSELECT * FROM saved;",
+        "options": {}
+      },
+      "id": "b1a1f1a0-0007-4d1a-9a01-000000000007",
+      "name": "7. Guardar triaje",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [720, 220],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR_CREDENCIAL_POSTGRES",
+          "name": "SOC-Lite PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO enrichment_data (\n  id, alert_id, provider, indicator, indicator_type, status, risk_score, summary, payload, fetched_at\n)\nSELECT\n  gen_random_uuid(),\n  '{{ $('4. Insertar alerta (idempotente)').item.json.id }}'::uuid,\n  COALESCE(item->>'provider', 'desconocido'),\n  COALESCE(item->>'indicator', 'sin-indicador'),\n  COALESCE(item->>'indicator_type', 'ip'),\n  COALESCE(item->>'status', 'ok'),\n  NULLIF(item->>'risk_score', '')::double precision,\n  COALESCE(item->>'summary', ''),\n  COALESCE(item->'payload', '{}'::jsonb),\n  now()\nFROM jsonb_array_elements('{{ JSON.stringify($('6. Triaje LangChain').item.json.enrichment || []).replace(/'/g, \"''\") }}'::jsonb) AS item\nON CONFLICT (alert_id, provider, indicator) DO UPDATE SET\n  status = EXCLUDED.status,\n  risk_score = EXCLUDED.risk_score,\n  summary = EXCLUDED.summary,\n  payload = EXCLUDED.payload,\n  fetched_at = EXCLUDED.fetched_at;",
+        "options": {}
+      },
+      "id": "b1a1f1a0-0008-4d1a-9a01-000000000008",
+      "name": "8. Guardar enriquecimiento",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [940, 220],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR_CREDENCIAL_POSTGRES",
+          "name": "SOC-Lite PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "switch-critica",
+                    "leftValue": "={{ $json.recommended_severity }}",
+                    "rightValue": "critical",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "critical"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "switch-alta",
+                    "leftValue": "={{ $json.recommended_severity }}",
+                    "rightValue": "high",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "high"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "switch-media",
+                    "leftValue": "={{ $json.recommended_severity }}",
+                    "rightValue": "medium",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "medium"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "switch-baja",
+                    "leftValue": "={{ $json.recommended_severity }}",
+                    "rightValue": "low",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "low"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "switch-info",
+                    "leftValue": "={{ $json.recommended_severity }}",
+                    "rightValue": "info",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "info"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1a1f1a0-0009-4d1a-9a01-000000000009",
+      "name": "9. Enrutar por severidad",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1160, 220]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": "#soc-alertas",
+        "text": "=🚨 *Alerta {{ $('4. Insertar alerta (idempotente)').item.json.severity }} triada*\\n*{{ $('4. Insertar alerta (idempotente)').item.json.title }}*\\nRiesgo: {{ $json.risk_score }}/100 · Veredicto: {{ $json.verdict }}\\nHost: {{ $('4. Insertar alerta (idempotente)').item.json.hostname || '—' }} · IP: {{ $('4. Insertar alerta (idempotente)').item.json.source_ip || '—' }}\\nAcciones: {{ ($('6. Triaje LangChain').item.json.recommended_actions || []).length }} recomendadas\\n<http://dashboard.soc-lite.local/alerts/{{ $('4. Insertar alerta (idempotente)').item.json.id }}|Abrir en SOC-Lite>",
+        "otherOptions": {}
+      },
+      "id": "b1a1f1a0-0010-4d1a-9a01-000000000010",
+      "name": "10. Notificar Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1400, 120],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "slackApi": {
+          "id": "REEMPLAZAR_CREDENCIAL_SLACK",
+          "name": "SOC-Lite Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://osticket.example.com/api/v1/tickets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ subject: 'SOC-Lite · ' + $('4. Insertar alerta (idempotente)').item.json.title, message: $('6. Triaje LangChain').item.json.summary, priority: $('4. Insertar alerta (idempotente)').item.json.severity, source: 'SOC-Lite', alert_id: $('4. Insertar alerta (idempotente)').item.json.id, risk_score: $('7. Guardar triaje').item.json.risk_score }) }}",
+        "options": {}
+      },
+      "id": "b1a1f1a0-0011-4d1a-9a01-000000000011",
+      "name": "11. Crear ticket osTicket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 120],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "REEMPLAZAR_CREDENCIAL_OSTICKET",
+          "name": "SOC-Lite osTicket"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO audit_log (\n  id, user_id, actor_email, actor_role, event_type, module, action, direction,\n  entity_type, entity_id, description, method, path, status_code, ip_address, user_agent,\n  request_id, detail, duration_ms, created_at\n) VALUES (\n  gen_random_uuid(), NULL, 'n8n@integracion', 'integration', 'TRIAGE', 'alerts',\n  'Triaje automático n8n', NULL, 'alert',\n  '{{ $('4. Insertar alerta (idempotente)').item.json.id }}',\n  'Triaje LangChain persistido por workflow', 'POST', '/webhook/soc-lite-alert', 200, NULL, 'n8n',\n  '{{ $execution.id }}',\n  '{{ JSON.stringify({ verdict: $('7. Guardar triaje').item.json.verdict, severity: $('7. Guardar triaje').item.json.recommended_severity, engine: $('6. Triaje LangChain').item.json.engine }).replace(/'/g, \"''\") }}'::jsonb,\n  NULL, now()\n);",
+        "options": {}
+      },
+      "id": "b1a1f1a0-0012-4d1a-9a01-000000000012",
+      "name": "12. Auditoría",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1840, 220],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR_CREDENCIAL_POSTGRES",
+          "name": "SOC-Lite PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## SOC-Lite · Triaje automático\n\n**Flujo:** Webhook → normalización → filtro de severidad → inserción idempotente → LangChain → persistencia → enrutamiento → notificación/ticket → auditoría.\n\n**Credenciales a reemplazar:** PostgreSQL, Slack y osTicket. Configure `SOC_AI_INTERNAL_KEY` en n8n y en el microservicio.\n\n**Idempotencia:** `alerts.fingerprint` único con ventana de 5 minutos. Si la alerta ya existe, el nodo 4 no devuelve filas y el nodo 5 detiene la rama.\n\n**Nota:** los nodos 6 y 7 usan las expresiones de n8n; valide el JSON en su instancia antes de activar.",
+        "height": 320,
+        "width": 420,
+        "color": 4
+      },
+      "id": "b1a1f1a0-0013-4d1a-9a01-000000000013",
+      "name": "Nota de arquitectura",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-620, 560]
+    }
+  ],
+  "connections": {
+    "1. Webhook Wazuh / OPNsense": {
+      "main": [
+        [
+          {
+            "node": "2. Normalizar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Normalizar alerta": {
+      "main": [
+        [
+          {
+            "node": "3. ¿Severidad ≥ media?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. ¿Severidad ≥ media?": {
+      "main": [
+        [
+          {
+            "node": "4. Insertar alerta (idempotente)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "4. Insertar alerta (idempotente)": {
+      "main": [
+        [
+          {
+            "node": "5. ¿Alerta nueva?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. ¿Alerta nueva?": {
+      "main": [
+        [
+          {
+            "node": "6. Triaje LangChain",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "6. Triaje LangChain": {
+      "main": [
+        [
+          {
+            "node": "7. Guardar triaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "7. Guardar triaje": {
+      "main": [
+        [
+          {
+            "node": "8. Guardar enriquecimiento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Guardar enriquecimiento": {
+      "main": [
+        [
+          {
+            "node": "9. Enrutar por severidad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Enrutar por severidad": {
+      "main": [
+        [
+          {
+            "node": "10. Notificar Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10. Notificar Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12. Auditoría",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12. Auditoría",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12. Auditoría",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Notificar Slack": {
+      "main": [
+        [
+          {
+            "node": "11. Crear ticket osTicket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Crear ticket osTicket": {
+      "main": [
+        [
+          {
+            "node": "12. Auditoría",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "a1b2c3d4-0000-4000-8000-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "soc-lite"
+    },
+    {
+      "name": "triaje"
+    }
+  ]
+}

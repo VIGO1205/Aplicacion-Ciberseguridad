@@ -1,0 +1,100 @@
+name: soc-lite
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: soc-lite-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-soc_lite}
+      POSTGRES_USER: ${POSTGRES_USER:-soc_lite}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc_lite_dev_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soc_lite} -d ${POSTGRES_DB:-soc_lite}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    container_name: soc-lite-ai
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      INTERNAL_API_KEY: ${TRIAGE_API_KEY:-clave-interna-ai-cambiar}
+      ENRICHMENT_ENABLED: ${ENRICHMENT_ENABLED:-true}
+      GEOIP_ENABLED: ${GEOIP_ENABLED:-false}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: soc-lite-api
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SECRET_KEY: ${SECRET_KEY:-cambia-esta-clave-en-produccion-32-caracteres-minimo}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://soc_lite:soc_lite_dev_password@db:5432/soc_lite}
+      AUTO_SEED: ${AUTO_SEED:-true}
+      DEMO_MODE: ${DEMO_MODE:-true}
+      INGEST_API_KEY: ${INGEST_API_KEY:-dev-ingest-key-cambiar}
+      TRIAGE_SERVICE_URL: ${TRIAGE_SERVICE_URL:-http://ai-service:8001}
+      TRIAGE_API_KEY: ${TRIAGE_API_KEY:-clave-interna-ai-cambiar}
+      TRIAGE_MODE: ${TRIAGE_MODE:-auto}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      REPORTS_DIR: /app/storage/reports
+    volumes:
+      - reports:/app/storage/reports
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: soc-lite-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: soc-lite-ollama
+    profiles: ["llm"]
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
+volumes:
+  pgdata:
+  reports:
+  ollama:
