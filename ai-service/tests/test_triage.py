@@ -97,6 +97,12 @@ class TriageServiceTest(unittest.TestCase):
             self.assertEqual(model, settings.groq_model)
             self.assertEqual(chat.call_args.kwargs["base_url"], "https://api.groq.com/openai/v1")
             self.assertEqual(chat.call_args.kwargs["api_key"], "test-key")
+            self.assertEqual(chat.call_args.kwargs["reasoning_effort"], "low")
+            self.assertEqual(chat.call_args.kwargs["max_completion_tokens"], 3000)
+            self.assertEqual(
+                chat.call_args.kwargs["model_kwargs"]["response_format"],
+                {"type": "json_object"},
+            )
 
     def test_critical_alert_is_not_routed_to_soc_l1(self) -> None:
         decision = LLMDecision(

@@ -264,7 +264,9 @@ def _get_llm():
                 temperature=0.1,
                 api_key=settings.groq_api_key,
                 base_url="https://api.groq.com/openai/v1",
-                max_tokens=1200,
+                max_completion_tokens=3000,
+                reasoning_effort="low",
+                model_kwargs={"response_format": {"type": "json_object"}},
                 timeout=30,
                 max_retries=1,
             ),
@@ -318,6 +320,8 @@ def _extract_text(message: Any) -> str:
 
 def _parse_json(text: str) -> dict[str, Any]:
     cleaned = text.strip()
+    if not cleaned:
+        raise ValueError("El modelo devolvió contenido vacío")
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```(?:json)?", "", cleaned, flags=re.IGNORECASE).strip()
         cleaned = re.sub(r"```$", "", cleaned).strip()
