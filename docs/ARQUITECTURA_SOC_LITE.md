@@ -133,7 +133,7 @@ flowchart LR
 | `backend` | 8000 | API interna / proxy | API REST, RBAC, reportes, auditoría. |
 | `ai-service` | 8001 | Solo red interna | Triaje LangChain; no se publica a Internet. |
 | `db` | 5432 | Solo red interna / localhost | PostgreSQL. |
-| `n8n` | 5678 | Red interna / VPN | Orquestación; en el compose no se incluye para no imponer una instancia, se conecta a la existente. |
+| `n8n` | 5678 | Solo localhost por defecto | Orquestación incluida en Compose; usa `n8n-db` para sus datos internos y accede a `db` y `ai-service` por la red Docker. |
 | `ollama` | 11434 | Solo red interna | Inferencia local; perfil opcional `llm`. |
 
 ### 1.5 Flujo de ingesta y triaje
@@ -182,7 +182,7 @@ sequenceDiagram
 
 | Modo | Escenario | Componentes | Consideraciones |
 |---|---|---|---|
-| **Todo en uno** | PYME, laboratorio, demo | Docker Compose: db + ai + backend + frontend (+ Ollama opcional) | 4 vCPU / 16 GB RAM; un solo host; backup diario. |
+| **Todo en uno** | PYME, laboratorio, demo | Docker Compose: db + n8n-db + n8n + ai + backend + frontend (+ Ollama opcional) | 4 vCPU / 16 GB RAM; un solo host; backup diario de ambas bases y del volumen n8n. |
 | **Distribuido** | Empresa mediana | PostgreSQL gestionado, 2+ workers FastAPI, AI en host GPU, n8n HA, nginx | Cola/Redis para rate limit y locks; balanceador; observabilidad. |
 | **Aislado (air-gapped)** | Organismo público / defensa | Todos los contenedores y modelo descargado offline | Sin claves externas; enriquecimiento limitado a CMDB/MITRE; actualización por bundle firmado. |
 
@@ -1306,7 +1306,7 @@ ON CONFLICT (alert_id, provider, indicator) DO UPDATE SET …;
 2. Crear credencial PostgreSQL `SOC-Lite PostgreSQL` y reemplazar `REEMPLAZAR_CREDENCIAL_POSTGRES`.
 3. Crear credencial Slack y reemplazar el ID.
 4. Crear credencial HTTP Basic para osTicket.
-5. Definir `SOC_AI_INTERNAL_KEY` en n8n y `INTERNAL_API_KEY` en el microservicio.
+5. En Docker Compose, `SOC_AI_INTERNAL_KEY` e `INTERNAL_API_KEY` reciben el valor de `TRIAGE_API_KEY`; en instalaciones externas deben configurarse manualmente.
 6. Ajustar `http://ai-service:8001` si el microservicio está en otro host.
 7. Activar el workflow y registrar la URL del webhook en Wazuh/OPNsense.
 
@@ -1480,26 +1480,28 @@ El flujo sigue las fases de preparación, detección/análisis, contención/erra
 
 - Docker Engine 24+ y Compose v2.
 - 4 vCPU, 16 GB RAM, 50 GB disco (mínimo demo).
-- Puertos 8080 (UI), 8000 (API), 5432 (solo local), 8001 (AI, solo local).
+- Puertos 8080 (UI), 8000 (API), 5432 (solo local), 8001 (AI, solo local) y 5678 (n8n, solo local).
 - Opcional: GPU NVIDIA + Container Toolkit para Ollama.
 
 ### 9.2 Inicio rápido con Docker
 
 ```bash
 cp .env.example .env
-# Cambiar SECRET_KEY, POSTGRES_PASSWORD, INGEST_API_KEY y TRIAGE_API_KEY
+# Cambiar SECRET_KEY, POSTGRES_PASSWORD, DATABASE_URL, INGEST_API_KEY,
+# TRIAGE_API_KEY, N8N_DB_PASSWORD y N8N_ENCRYPTION_KEY
 
 docker compose up -d --build
 # UI:      http://localhost:8080
 # API:     http://localhost:8000/docs
 # Salud:   http://localhost:8000/health
+# n8n:     http://localhost:5678
 
 # Modelo local (opcional, perfil llm)
 docker compose --profile llm up -d ollama
 docker compose exec ollama ollama pull llama3.1:8b
 ```
 
-El contenedor de base de datos ejecuta `db/init/01_schema.sql` y `02_seed.sql` solo en el primer arranque del volumen. El backend, con `AUTO_SEED=true`, verifica y completa la semilla de forma idempotente.
+El contenedor de base de datos ejecuta `db/init/01_schema.sql` y `02_seed.sql` solo en el primer arranque del volumen. El backend, con `AUTO_SEED=true`, verifica y completa la semilla de forma idempotente. n8n usa su propia base `n8n-db` y el volumen `n8n_data`; el workflow se importa y activa desde el editor tras crear sus credenciales.
 
 ### 9.3 Desarrollo local
 
@@ -1548,7 +1550,7 @@ uvicorn app.main:app --reload --port 8001
 - [ ] Retención de auditoría aprobada.
 - [ ] Roles revisados; MFA/SSO en roadmap.
 - [ ] Ollama en red interna; sin puerto público.
-- [ ] n8n con credenciales cifradas y Variables de entorno protegidas.
+- [ ] n8n con `N8N_ENCRYPTION_KEY` estable, credenciales cifradas, HTTPS y variables de entorno protegidas.
 - [ ] Monitoreo de `/health`, errores 5xx y latencia de triaje.
 
 ---

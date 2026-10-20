@@ -30,7 +30,8 @@ Requisitos: Docker Engine 24+ y Docker Compose v2.
 
 ```bash
 cp .env.example .env
-# Edite .env: SECRET_KEY, POSTGRES_PASSWORD, INGEST_API_KEY y TRIAGE_API_KEY
+# Edite .env: SECRET_KEY, POSTGRES_PASSWORD, DATABASE_URL, INGEST_API_KEY,
+# TRIAGE_API_KEY, N8N_DB_PASSWORD y N8N_ENCRYPTION_KEY
 
 docker compose up -d --build
 ```
@@ -43,8 +44,9 @@ Servicios:
 | http://localhost:8000/docs | OpenAPI / Swagger |
 | http://localhost:8000/health | Salud de la API |
 | http://localhost:8001/health | Salud del microservicio IA |
+| http://localhost:5678 | Editor n8n (solo desde el host) |
 
-El primer arranque crea el esquema y los datos demo desde `db/init/`. El backend verifica la semilla con `AUTO_SEED=true`.
+El primer arranque crea el esquema y los datos demo desde `db/init/`. El backend verifica la semilla con `AUTO_SEED=true`. n8n usa su propia base PostgreSQL (`n8n-db`) y conserva su configuración y credenciales en volúmenes Docker. Su interfaz escucha solo en `127.0.0.1:5678`.
 
 ### Modelo local opcional
 
@@ -53,10 +55,10 @@ docker compose --profile llm up -d ollama
 docker compose exec ollama ollama pull llama3.1:8b
 ```
 
-Sin Ollama, el microservicio usa el motor heurístico (o el backend cae a él si `TRIAGE_MODE=auto`). Para una demo sin GPU:
+Sin Ollama, el microservicio usa el motor heurístico (o el backend cae a él si `TRIAGE_MODE=auto`). Para una demo sin GPU y con n8n en el mismo Compose, establezca `LLM_PROVIDER=heuristic` en `.env` y ejecute:
 
 ```bash
-docker compose -f docker-compose.demo.yml up -d --build
+docker compose up -d --build
 ```
 
 ---
@@ -202,10 +204,13 @@ Verificaciones realizadas en este repositorio:
 
 ## 8. n8n
 
-1. Importar `n8n/soc-lite-triage-workflow.json`.
-2. Configurar credenciales PostgreSQL, Slack y osTicket.
-3. Igualar `SOC_AI_INTERNAL_KEY` (n8n) con `INTERNAL_API_KEY` (AI) y `TRIAGE_API_KEY` (backend).
-4. Activar y apuntar Wazuh/OPNsense a `POST /webhook/soc-lite-alert`.
+1. Iniciar los servicios con `docker compose up -d --build` y abrir `http://localhost:5678` para crear el usuario propietario de n8n.
+2. Importar `n8n/soc-lite-triage-workflow.json`.
+3. Crear la credencial PostgreSQL del workflow con host `db`, puerto `5432`, base y usuario definidos por `POSTGRES_DB` y `POSTGRES_USER`, y la contraseña `POSTGRES_PASSWORD`. Esta es la base de SOC-Lite; `n8n-db` almacena únicamente los datos internos de n8n.
+4. Configurar las credenciales Slack y osTicket si se usarán esas integraciones. `SOC_AI_INTERNAL_KEY` se toma automáticamente de `TRIAGE_API_KEY` en Compose.
+5. Revisar las URL de Slack, osTicket y del dashboard que aparecen como ejemplos en el workflow; después activarlo y apuntar Wazuh/OPNsense a `POST /webhook/soc-lite-alert`.
+
+Para recibir webhooks desde otros equipos, publicar n8n mediante un proxy HTTPS y ajustar `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `N8N_WEBHOOK_URL`, `N8N_PROXY_HOPS` y `N8N_SECURE_COOKIE=true` en `.env`. El puerto 5678 debe permanecer privado. Conserve `N8N_ENCRYPTION_KEY`: cambiarla después de crear credenciales impide descifrarlas.
 
 El flujo conserva los 10 nodos funcionales del caso y añade normalización explícita, control de duplicado y persistencia de enriquecimiento. Ver sección 5 del documento de arquitectura.
 
