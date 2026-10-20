@@ -212,6 +212,8 @@ Verificaciones realizadas en este repositorio:
 4. Configurar las credenciales Slack y osTicket si se usarán esas integraciones. `SOC_AI_INTERNAL_KEY` se toma automáticamente de `TRIAGE_API_KEY` en Compose.
 5. Revisar las URL de Slack, osTicket y del dashboard que aparecen como ejemplos en el workflow; después activarlo y apuntar Wazuh/OPNsense a `POST /webhook/soc-lite-alert`.
 
+El nodo 7 envía el resultado tanto al nodo 8 (enriquecimiento) como al 9 (enrutamiento). Si se importó una versión anterior del flujo, conecte 7 → 9 y quite la conexión 8 → 9; así el enrutamiento recibe `recommended_severity` aunque el enriquecimiento no genere filas.
+
 Para recibir webhooks desde otros equipos, publicar n8n mediante un proxy HTTPS y ajustar `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `N8N_WEBHOOK_URL`, `N8N_PROXY_HOPS` y `N8N_SECURE_COOKIE=true` en `.env`. El puerto 5678 debe permanecer privado. Conserve `N8N_ENCRYPTION_KEY`: cambiarla después de crear credenciales impide descifrarlas.
 
 El flujo conserva los 10 nodos funcionales del caso y añade normalización explícita, control de duplicado y persistencia de enriquecimiento. Ver sección 5 del documento de arquitectura.

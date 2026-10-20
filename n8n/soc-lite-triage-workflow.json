@@ -455,13 +455,7 @@
             "node": "8. Guardar enriquecimiento",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "8. Guardar enriquecimiento": {
-      "main": [
-        [
+          },
           {
             "node": "9. Enrutar por severidad",
             "type": "main",
@@ -469,6 +463,9 @@
           }
         ]
       ]
+    },
+    "8. Guardar enriquecimiento": {
+      "main": [[]]
     },
     "9. Enrutar por severidad": {
       "main": [
