@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage
 
 from app.schemas import (
     AssetContext,
@@ -343,7 +344,7 @@ def _llm_decision(
     if llm is None:
         raise RuntimeError("Proveedor LLM deshabilitado")
     prompt = ChatPromptTemplate.from_messages(
-        [("system", SYSTEM_PROMPT), ("human", HUMAN_PROMPT)]
+        [SystemMessage(content=SYSTEM_PROMPT), ("human", HUMAN_PROMPT)]
     )
     chain = prompt | llm
     context = _build_context(request, enrichments, asset_context, mitre_from_tools)

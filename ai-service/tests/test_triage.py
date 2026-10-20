@@ -11,6 +11,8 @@ os.environ["GEOIP_ENABLED"] = "false"
 os.environ["INTERNAL_API_KEY"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
+from langchain_core.messages import AIMessage  # noqa: E402
+from langchain_core.runnables import RunnableLambda  # noqa: E402
 
 from app.main import app  # noqa: E402
 from app.agent import _get_llm, _safe_team  # noqa: E402
@@ -107,6 +109,22 @@ class TriageServiceTest(unittest.TestCase):
         )
         request = TriageRequest(title="Malware", severity="critical")
         self.assertEqual(_safe_team(decision, request), "soc_lead")
+
+    def test_llm_prompt_accepts_json_schema_example(self) -> None:
+        response = AIMessage(content=(
+            '{"verdict":"suspicious","recommended_severity":"high",'
+            '"confidence":0.8,"risk_score":75,"routing_team":"soc_l2",'
+            '"summary":"Alerta sospechosa."}'
+        ))
+        fake_llm = RunnableLambda(lambda _: response)
+        with (
+            patch.object(settings, "llm_provider", "groq"),
+            patch("app.agent._get_llm", return_value=(fake_llm, "groq", "test-model")),
+        ):
+            result = self.client.post("/triage", json={"title": "Actividad sospechosa", "severity": "high"})
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()["engine"], "groq")
+        self.assertEqual(result.json()["routing_team"], "soc_l2")
 
 
 if __name__ == "__main__":
