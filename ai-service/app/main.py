@@ -21,7 +21,7 @@ app = FastAPI(
     version=settings.app_version,
     description=(
         "Microservicio de triaje con LangChain: herramientas de enriquecimiento, "
-        "razonamiento con LLM local (Ollama) y fallback heurístico explicable."
+        "razonamiento con Ollama, OpenAI o Groq y fallback heurístico explicable."
     ),
 )
 
@@ -44,6 +44,8 @@ def health() -> dict:
         "version": settings.app_version,
         "llm_provider": settings.llm_provider,
         "ollama_model": settings.ollama_model,
+        "groq_model": settings.groq_model if settings.llm_provider.lower() == "groq" else None,
+        "llm_configured": settings.llm_provider.lower() != "groq" or bool(settings.groq_api_key),
         "enrichment_enabled": settings.enrichment_enabled,
         "external_enrichment_configured": settings.has_external_enrichment,
     }

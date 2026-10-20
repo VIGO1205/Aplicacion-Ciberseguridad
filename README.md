@@ -172,7 +172,7 @@ npm run dev
 ```bash
 cd ai-service
 pip install -r requirements.txt
-$env:LLM_PROVIDER="heuristic"   # o auto/ollama/openai
+$env:LLM_PROVIDER="heuristic"   # o auto/ollama/openai/groq
 uvicorn app.main:app --reload --port 8001
 ```
 
@@ -225,6 +225,14 @@ osTicket es opcional. La imagen `rinkp/osticket-dockerized:1.18.4` es comunitari
 Si n8n no se inició con ambos archivos Compose, no resolverá el nombre interno `osticket`. Conservar la IP fija `172.30.91.10` al recrear n8n para que la clave API siga siendo válida. No exponer el puerto 8088 fuera del equipo sin configurar HTTPS y autenticación apropiada.
 
 El nodo 7 envía el resultado tanto al nodo 8 (enriquecimiento) como al 9 (enrutamiento). Si se importó una versión anterior del flujo, conecte 7 → 9 y quite la conexión 8 → 9; así el enrutamiento recibe `recommended_severity` aunque el enriquecimiento no genere filas.
+
+### Groq y asignación automática
+
+El microservicio admite `LLM_PROVIDER=groq` con la API compatible con OpenAI de Groq. En el archivo local `.env`, configurar `GROQ_API_KEY` y `GROQ_MODEL` (por defecto `openai/gpt-oss-20b`). Mantener la clave fuera del repositorio y del navegador. Ejecutar `docker compose -f docker-compose.yml -f docker-compose.osticket.yml up -d --no-deps ai-service` para cargar la clave cuando esté lista. `GET http://localhost:8001/health` indica `llm_provider=groq` y `llm_configured=true`; cada resultado de triaje debe indicar `engine=groq`. Si falta la clave o Groq falla, el servicio conserva el fallback heurístico y el resultado indica `engine=heuristic-fallback`.
+
+El resultado de triaje incluye `routing_team`: `soc_l1`, `soc_l2`, `infrastructure` o `soc_lead`. La IA recomienda el equipo; n8n solo asigna una persona si el correo configurado corresponde a un usuario activo de SOC-Lite con permiso `alerts:update`. Definir en `.env` los correos `SOC_L1_ASSIGNEE_EMAIL`, `SOC_L2_ASSIGNEE_EMAIL`, `INFRASTRUCTURE_ASSIGNEE_EMAIL` y `SOC_LEAD_ASSIGNEE_EMAIL`, y ejecutar `docker compose -f docker-compose.yml -f docker-compose.osticket.yml up -d --no-deps n8n` para cargarlos. Se conserva cualquier asignación humana previa. Si no hay correspondencia válida, la alerta queda sin asignar para revisión.
+
+Para osTicket, crear los agentes que atenderán tickets y cuatro temas de ayuda con **Auto-Assign** al agente o equipo apropiado. Colocar sus IDs en `OSTICKET_TOPIC_SOC_L1`, `OSTICKET_TOPIC_SOC_L2`, `OSTICKET_TOPIC_INFRASTRUCTURE` y `OSTICKET_TOPIC_SOC_LEAD`. El nodo 11 envía el `topicId` correspondiente; si no hay ID configurado, osTicket recibe el ticket sin ese tema. El workflow ya importado en n8n no cambia por editar el JSON del repositorio: se deben actualizar sus nodos 7 y 11 preservando sus credenciales y probar con una alerta nueva. Los cambios de estado posteriores entre SOC-Lite y osTicket aún no se sincronizan.
 
 Para recibir webhooks desde otros equipos, publicar n8n mediante un proxy HTTPS y ajustar `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `N8N_WEBHOOK_URL`, `N8N_PROXY_HOPS` y `N8N_SECURE_COOKIE=true` en `.env`. El puerto 5678 debe permanecer privado. Conserve `N8N_ENCRYPTION_KEY`: cambiarla después de crear credenciales impide descifrarlas.
 

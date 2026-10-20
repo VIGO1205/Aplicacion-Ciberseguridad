@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from unittest.mock import patch
 
 os.environ["LLM_PROVIDER"] = "heuristic"
 os.environ["ENRICHMENT_ENABLED"] = "false"
@@ -12,6 +13,9 @@ os.environ["INTERNAL_API_KEY"] = ""
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
+from app.agent import _get_llm, _safe_team  # noqa: E402
+from app.schemas import LLMDecision, TriageRequest  # noqa: E402
+from app.settings import settings  # noqa: E402
 
 
 class TriageServiceTest(unittest.TestCase):
@@ -47,6 +51,7 @@ class TriageServiceTest(unittest.TestCase):
         self.assertGreaterEqual(data["risk_score"], 60)
         self.assertGreaterEqual(data["confidence"], 0.5)
         self.assertTrue(data["recommended_actions"])
+        self.assertIn(data["routing_team"], {"soc_l2", "soc_lead"})
         self.assertIn("T1110", data["mitre_techniques"])
 
     def test_test_pattern_is_false_positive(self) -> None:
@@ -70,6 +75,38 @@ class TriageServiceTest(unittest.TestCase):
     def test_internal_key_enforced_when_configured(self) -> None:
         # El módulo se importó con INTERNAL_API_KEY vacío; se verifica el health público.
         self.assertEqual(self.client.get("/health").status_code, 200)
+
+    def test_groq_without_key_falls_back_and_reports_status(self) -> None:
+        with patch.object(settings, "llm_provider", "groq"), patch.object(settings, "groq_api_key", ""):
+            health = self.client.get("/health").json()
+            self.assertFalse(health["llm_configured"])
+            response = self.client.post("/triage", json={"title": "Escaneo de puertos", "severity": "medium"})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()["engine"], "heuristic-fallback")
+
+    def test_groq_uses_openai_compatible_endpoint(self) -> None:
+        with (
+            patch.object(settings, "llm_provider", "groq"),
+            patch.object(settings, "groq_api_key", "test-key"),
+            patch("langchain_openai.ChatOpenAI") as chat,
+        ):
+            _, engine, model = _get_llm()
+            self.assertEqual(engine, "groq")
+            self.assertEqual(model, settings.groq_model)
+            self.assertEqual(chat.call_args.kwargs["base_url"], "https://api.groq.com/openai/v1")
+            self.assertEqual(chat.call_args.kwargs["api_key"], "test-key")
+
+    def test_critical_alert_is_not_routed_to_soc_l1(self) -> None:
+        decision = LLMDecision(
+            verdict="suspicious",
+            recommended_severity="critical",
+            confidence=0.95,
+            risk_score=90,
+            routing_team="soc_l1",
+            summary="Requiere revisión urgente",
+        )
+        request = TriageRequest(title="Malware", severity="critical")
+        self.assertEqual(_safe_team(decision, request), "soc_lead")
 
 
 if __name__ == "__main__":

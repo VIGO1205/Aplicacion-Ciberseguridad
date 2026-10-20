@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 Severity = Literal["critical", "high", "medium", "low", "info"]
 Verdict = Literal["true_positive", "false_positive", "suspicious", "benign"]
+RoutingTeam = Literal["soc_l1", "soc_l2", "infrastructure", "soc_lead"]
 
 
 class AssetContext(BaseModel):
@@ -68,6 +69,7 @@ class TriageResponse(BaseModel):
     recommended_severity: Severity
     confidence: float = Field(ge=0, le=1)
     risk_score: int = Field(ge=0, le=100)
+    routing_team: RoutingTeam
     summary: str
     reasoning: str
     recommended_actions: list[TriageAction] = []
@@ -87,6 +89,7 @@ class LLMDecision(BaseModel):
     recommended_severity: Severity
     confidence: float = Field(ge=0, le=1)
     risk_score: int = Field(ge=0, le=100)
+    routing_team: RoutingTeam
     summary: str
     reasoning: str = ""
     recommended_actions: list[TriageAction | str] = []

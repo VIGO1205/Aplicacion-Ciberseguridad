@@ -1,4 +1,4 @@
-"""Agente de triaje: enriquecimiento con herramientas + razonamiento LLM local."""
+"""Agente de triaje con LLM configurable y fallback heurístico."""
 from __future__ import annotations
 
 import json
@@ -16,6 +16,7 @@ from app.schemas import (
     TriageAction,
     TriageRequest,
     TriageResponse,
+    RoutingTeam,
 )
 from app.settings import settings
 from app.tools import (
@@ -34,6 +35,9 @@ Criterios:
 - Diferencia entre actividad maliciosa confirmada, sospechosa, benigna y falso positivo.
 - Si faltan datos, baja la confianza y propone acciones de validación.
 - Prioriza protección de activos críticos y contención proporcional.
+- Elige routing_team solo entre soc_l1, soc_l2, infrastructure y soc_lead.
+- routing_team es una recomendación de equipo, nunca un nombre de persona.
+- Las alertas críticas no deben quedar en soc_l1.
 - No propongas acciones destructivas ni acceso a datos personales innecesario.
 - Usa español profesional y conciso.
 
@@ -43,6 +47,7 @@ Esquema JSON obligatorio:
   "recommended_severity": "critical|high|medium|low|info",
   "confidence": 0.0,
   "risk_score": 0,
+  "routing_team": "soc_l1|soc_l2|infrastructure|soc_lead",
   "summary": "resumen ejecutivo de 2-3 frases",
   "reasoning": "razonamiento breve basado en evidencia",
   "recommended_actions": [
@@ -106,6 +111,24 @@ def _actions_for(severity: str, verdict: str, host: str, ip: str | None) -> list
         TriageAction(priority=1, action="Documentar el análisis y cerrar como falso positivo si se confirma.", owner="SOC L1", sla_minutes=60, type="closure"),
         TriageAction(priority=2, action="Ajustar umbral o excepción de la regla para reducir ruido.", owner="Ingeniería SOC", sla_minutes=240, type="tuning"),
     ]
+
+
+def _heuristic_team(request: TriageRequest, severity: str) -> RoutingTeam:
+    if severity == "critical":
+        return "soc_lead"
+    if request.source.lower() == "opnsense" and severity == "high":
+        return "infrastructure"
+    if severity == "high":
+        return "soc_l2"
+    return "soc_l1"
+
+
+def _safe_team(decision: LLMDecision, request: TriageRequest) -> RoutingTeam:
+    if decision.recommended_severity == "critical" and decision.routing_team == "soc_l1":
+        return "soc_lead"
+    if decision.confidence < 0.6:
+        return _heuristic_team(request, decision.recommended_severity)
+    return decision.routing_team
 
 
 def heuristic_decision(
@@ -196,6 +219,7 @@ def heuristic_decision(
         recommended_severity=recommended,
         confidence=confidence,
         risk_score=score,
+        routing_team=_heuristic_team(request, recommended),
         summary=summary,
         reasoning=" ".join(reasons),
         recommended_actions=_actions_for(recommended, verdict, host, request.source_ip),
@@ -228,6 +252,24 @@ def _build_context(
 
 def _get_llm():
     provider = settings.llm_provider.lower()
+    if provider == "groq":
+        from langchain_openai import ChatOpenAI
+
+        if not settings.groq_api_key:
+            raise RuntimeError("GROQ_API_KEY no configurada")
+        return (
+            ChatOpenAI(
+                model=settings.groq_model,
+                temperature=0.1,
+                api_key=settings.groq_api_key,
+                base_url="https://api.groq.com/openai/v1",
+                max_tokens=1200,
+                timeout=30,
+                max_retries=1,
+            ),
+            "groq",
+            settings.groq_model,
+        )
     if provider == "openai":
         from langchain_openai import ChatOpenAI
 
@@ -374,6 +416,7 @@ def triage(request: TriageRequest) -> TriageResponse:
         recommended_severity=decision.recommended_severity,
         confidence=max(0.0, min(1.0, decision.confidence)),
         risk_score=max(0, min(100, decision.risk_score)),
+        routing_team=_safe_team(decision, request),
         summary=decision.summary[:4000],
         reasoning=decision.reasoning[:6000],
         recommended_actions=decision.recommended_actions,

@@ -20,12 +20,14 @@ class AISettings(BaseSettings):
     internal_api_key: str = ""
 
     # auto: intenta Ollama y, si falla, usa el motor heurístico.
-    llm_provider: str = "auto"  # auto | ollama | openai | heuristic
+    llm_provider: str = "auto"  # auto | ollama | openai | groq | heuristic
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:8b"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_base_url: str = ""
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
 
     enrichment_enabled: bool = True
     geoip_enabled: bool = False
