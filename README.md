@@ -232,7 +232,19 @@ El microservicio admite `LLM_PROVIDER=groq` con la API compatible con OpenAI de 
 
 El resultado de triaje incluye `routing_team`: `soc_l1`, `soc_l2`, `infrastructure` o `soc_lead`. La IA recomienda el equipo; n8n solo asigna una persona si el correo configurado corresponde a un usuario activo de SOC-Lite con permiso `alerts:update`. Definir en `.env` los correos `SOC_L1_ASSIGNEE_EMAIL`, `SOC_L2_ASSIGNEE_EMAIL`, `INFRASTRUCTURE_ASSIGNEE_EMAIL` y `SOC_LEAD_ASSIGNEE_EMAIL`, y ejecutar `docker compose -f docker-compose.yml -f docker-compose.osticket.yml up -d --no-deps n8n` para cargarlos. Se conserva cualquier asignación humana previa. Si no hay correspondencia válida, la alerta queda sin asignar para revisión.
 
-Para osTicket, crear los agentes que atenderán tickets y cuatro temas de ayuda con **Auto-Assign** al agente o equipo apropiado. Colocar sus IDs en `OSTICKET_TOPIC_SOC_L1`, `OSTICKET_TOPIC_SOC_L2`, `OSTICKET_TOPIC_INFRASTRUCTURE` y `OSTICKET_TOPIC_SOC_LEAD`. El nodo 11 envía el `topicId` correspondiente; si no hay ID configurado, osTicket recibe el ticket sin ese tema. El workflow ya importado en n8n no cambia por editar el JSON del repositorio: se deben actualizar sus nodos 7 y 11 preservando sus credenciales y probar con una alerta nueva. Los cambios de estado posteriores entre SOC-Lite y osTicket aún no se sincronizan.
+Para osTicket, crear los agentes que atenderán tickets y cuatro temas de ayuda con **Auto-Assign** al agente o equipo apropiado. Colocar sus IDs en `OSTICKET_TOPIC_SOC_L1`, `OSTICKET_TOPIC_SOC_L2`, `OSTICKET_TOPIC_INFRASTRUCTURE` y `OSTICKET_TOPIC_SOC_LEAD`. El nodo 11 envía el `topicId` correspondiente; si no hay ID configurado, osTicket recibe el ticket sin ese tema. El workflow ya importado en n8n no cambia por editar el JSON del repositorio: se deben actualizar sus nodos 7 y 11 preservando sus credenciales y probar con una alerta nueva.
+
+### Sincronizar el cierre de tickets
+
+Con osTicket local, iniciar también `osticket-sync`:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.osticket.yml up -d --build backend frontend osticket-sync
+```
+
+El servicio lee los tickets de osTicket cada `OSTICKET_SYNC_INTERVAL_SECONDS` segundos (20 por defecto). Solo procesa tickets creados por API con el correo `OSTICKET_REQUESTER_EMAIL` y el `Alerta ID: UUID` que incluye el nodo 11. El número y estado del ticket aparecen en el detalle de la alerta. Cuando un agente cierra el ticket, la alerta pasa a **Cerrada** en SOC-Lite; si reabre ese mismo ticket, recupera su estado anterior siempre que el cierre lo haya aplicado esta integración. Cada cambio queda en Auditoría. Los tickets anteriores que ya contienen ese identificador también se enlazan al arrancar. Los incidentes de SOC-Lite se mantienen independientes y deben resolverse en su propio flujo.
+
+La sincronización consulta la base de osTicket porque su API pública solo permite crear tickets. El proceso no escribe en la base de osTicket y usa la cuenta de base configurada para la instalación local. Para verificarlo, cerrar un ticket de prueba en el panel de agentes, esperar hasta 20 segundos y pulsar **Actualizar** en el detalle de la alerta de SOC-Lite. Si el ticket se reabre, repetir la consulta.
 
 Para recibir webhooks desde otros equipos, publicar n8n mediante un proxy HTTPS y ajustar `N8N_HOST`, `N8N_PROTOCOL`, `N8N_EDITOR_BASE_URL`, `N8N_WEBHOOK_URL`, `N8N_PROXY_HOPS` y `N8N_SECURE_COOKIE=true` en `.env`. El puerto 5678 debe permanecer privado. Conserve `N8N_ENCRYPTION_KEY`: cambiarla después de crear credenciales impide descifrarlas.
 

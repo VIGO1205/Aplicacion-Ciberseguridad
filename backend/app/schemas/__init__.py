@@ -212,6 +212,13 @@ class IncidentBrief(ORMModel):
     closed_at: datetime | None
 
 
+class OsticketTicketBrief(ORMModel):
+    ticket_number: str
+    status_state: str
+    status_name: str
+    last_synced_at: datetime
+
+
 class AlertOut(ORMModel):
     id: uuid.UUID
     external_id: str | None
@@ -237,6 +244,7 @@ class AlertOut(ORMModel):
     assigned_to: UserBrief | None = None
     triage_result: TriageResultOut | None = None
     incident: IncidentBrief | None = None
+    osticket_link: OsticketTicketBrief | None = None
 
 
 class AlertDetailOut(AlertOut):

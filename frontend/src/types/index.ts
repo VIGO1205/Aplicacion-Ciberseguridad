@@ -116,6 +116,13 @@ export interface IncidentBrief {
   closed_at: string | null;
 }
 
+export interface OsticketTicketBrief {
+  ticket_number: string;
+  status_state: "open" | "closed";
+  status_name: string;
+  last_synced_at: string;
+}
+
 export interface Alert {
   id: string;
   external_id: string | null;
@@ -141,6 +148,7 @@ export interface Alert {
   assigned_to: UserBrief | null;
   triage_result: TriageResult | null;
   incident: IncidentBrief | null;
+  osticket_link: OsticketTicketBrief | null;
 }
 
 export interface AlertDetail extends Alert {

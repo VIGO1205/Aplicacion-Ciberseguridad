@@ -229,6 +229,27 @@ class Alert(Base, TimestampMixin):
     incident: Mapped["Incident | None"] = relationship(
         back_populates="alert", uselist=False, lazy="selectin"
     )
+    osticket_link: Mapped["OsticketTicketLink | None"] = relationship(
+        back_populates="alert", uselist=False, lazy="selectin", cascade="all, delete-orphan"
+    )
+
+
+class OsticketTicketLink(Base):
+    __tablename__ = "osticket_ticket_links"
+
+    alert_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("alerts.id", ondelete="CASCADE"), primary_key=True
+    )
+    ticket_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    ticket_number: Mapped[str] = mapped_column(String(20), nullable=False)
+    status_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    status_name: Mapped[str] = mapped_column(String(60), nullable=False)
+    closed_by_ticket: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    previous_alert_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    applied_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    alert: Mapped[Alert] = relationship(back_populates="osticket_link")
 
 
 class EnrichmentData(Base):

@@ -408,6 +408,12 @@ export function AlertDetailPage() {
               <MetaRow label="Primera vez" value={formatDateTime(alert.first_seen_at)} />
               <MetaRow label="Última vez" value={formatDateTime(alert.last_seen_at)} />
               <MetaRow label="Asignada a" value={alert.assigned_to?.full_name || "Sin asignar"} />
+              {alert.osticket_link ? (
+                <>
+                  <MetaRow label="Ticket osTicket" value={`#${alert.osticket_link.ticket_number}`} mono />
+                  <MetaRow label="Estado del ticket" value={alert.osticket_link.status_name} />
+                </>
+              ) : null}
               <MetaRow label="IP origen" value={alert.source_ip || "—"} mono />
               <MetaRow label="IP destino" value={alert.destination_ip || "—"} mono />
               <MetaRow label="Usuario" value={alert.username || "—"} mono />

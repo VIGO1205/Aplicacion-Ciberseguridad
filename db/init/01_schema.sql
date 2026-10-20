@@ -265,6 +265,21 @@ CREATE TABLE triage_results (
 CREATE INDEX ix_triage_results_alert_id ON triage_results (alert_id);
 CREATE INDEX ix_triage_results_created_at ON triage_results (created_at);
 
+CREATE TABLE osticket_ticket_links (
+	alert_id UUID NOT NULL,
+	ticket_id INTEGER NOT NULL,
+	ticket_number VARCHAR(20) NOT NULL,
+	status_state VARCHAR(16) NOT NULL,
+	status_name VARCHAR(60) NOT NULL,
+	closed_by_ticket BOOLEAN NOT NULL,
+	previous_alert_status VARCHAR(20),
+	applied_closed_at TIMESTAMP WITH TIME ZONE,
+	last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	PRIMARY KEY (alert_id),
+	UNIQUE (ticket_id),
+	FOREIGN KEY(alert_id) REFERENCES alerts (id) ON DELETE CASCADE
+);
+
 COMMIT;
 
 -- Datos semilla: la aplicación los carga de forma idempotente al iniciar

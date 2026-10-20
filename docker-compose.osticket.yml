@@ -1,4 +1,26 @@
 services:
+  osticket-sync:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    command: python -m app.services.osticket_sync
+    healthcheck:
+      disable: true
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://soc_lite:soc_lite_dev_password@db:5432/soc_lite}
+      OSTICKET_DB_PASSWORD: ${OSTICKET_DB_PASSWORD:?Configure OSTICKET_DB_PASSWORD in .env}
+      OSTICKET_REQUESTER_EMAIL: ${OSTICKET_REQUESTER_EMAIL:-soc-lite@example.org}
+      OSTICKET_SYNC_INTERVAL_SECONDS: ${OSTICKET_SYNC_INTERVAL_SECONDS:-20}
+    networks:
+      - default
+      - osticket_net
+    depends_on:
+      db:
+        condition: service_healthy
+      osticket-db:
+        condition: service_healthy
+
   n8n:
     environment:
       OSTICKET_REQUESTER_EMAIL: ${OSTICKET_REQUESTER_EMAIL:-soc-lite@example.org}
