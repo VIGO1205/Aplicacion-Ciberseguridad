@@ -48,6 +48,7 @@ services:
       OST_PLUGINS_STORAGEFS_PATH: /var/www/attachments
     volumes:
       - osticket_attachments:/var/www/attachments
+      - ./osticket/agent-landing.conf:/etc/apache2/conf.d/98-agent-landing.conf:ro
     ports:
       - "127.0.0.1:${OSTICKET_HOST_PORT:-8088}:80"
     networks:
