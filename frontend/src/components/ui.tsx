@@ -1,12 +1,14 @@
 import {
   forwardRef,
   useEffect,
+  useId,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import type { AlertStatus, IncidentStatus, Severity, Verdict } from "../types";
 import {
@@ -448,6 +450,9 @@ export function Modal({
   footer?: ReactNode;
   width?: string;
 }) {
+  const titleId = useId();
+  const descriptionId = useId();
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -462,7 +467,7 @@ export function Modal({
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
@@ -471,6 +476,10 @@ export function Modal({
         aria-label="Cerrar"
       />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         className={cn(
           "relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 shadow-2xl",
           width,
@@ -478,8 +487,8 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-white">{title}</h2>
-            {description ? <p className="mt-1 text-xs text-slate-400">{description}</p> : null}
+            <h2 id={titleId} className="text-base font-semibold text-white">{title}</h2>
+            {description ? <p id={descriptionId} className="mt-1 text-xs text-slate-400">{description}</p> : null}
           </div>
           <button
             type="button"
@@ -493,7 +502,8 @@ export function Modal({
         <div className="px-5 py-4">{children}</div>
         {footer ? <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-3">{footer}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
