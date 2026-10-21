@@ -5,7 +5,7 @@ import { cn, formatNumber } from "../lib/utils";
 export function AreaTrend({
   data,
   height = 190,
-  color = "#22d3ee",
+  color = "var(--chart-cyan)",
 }: {
   data: SeriesPoint[];
   height?: number;
@@ -23,7 +23,7 @@ export function AreaTrend({
   });
   const line = points.map((point) => `${point.x},${point.y}`).join(" ");
   const area = `${padding.left},${padding.top + innerH} ${line} ${padding.left + innerW},${padding.top + innerH}`;
-  const gradientId = `trend-${color.replace("#", "")}`;
+  const gradientId = `trend-${color.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label="Evolución diaria de alertas">
@@ -37,7 +37,7 @@ export function AreaTrend({
         const y = padding.top + innerH * ratio;
         return (
           <g key={ratio}>
-            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="rgb(var(--color-white, 255 255 255) / 0.1)" strokeWidth="1" />
             <text x={padding.left - 7} y={y + 3} textAnchor="end" className="fill-slate-500 text-[9px]">
               {Math.round(max * (1 - ratio))}
             </text>
@@ -50,7 +50,7 @@ export function AreaTrend({
         const show = data.length <= 10 || index % Math.ceil(data.length / 8) === 0 || index === data.length - 1;
         return (
           <g key={point.label}>
-            <circle cx={point.x} cy={point.y} r="3" fill="#050b16" stroke={color} strokeWidth="2" />
+            <circle cx={point.x} cy={point.y} r="3" fill="rgb(var(--color-ink-950, 5 11 22))" stroke={color} strokeWidth="2" />
             {show ? (
               <text x={point.x} y={height - 8} textAnchor="middle" className="fill-slate-500 text-[9px]">
                 {point.label.slice(5)}
@@ -64,14 +64,14 @@ export function AreaTrend({
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: "#f43f5e",
-  high: "#fb923c",
-  medium: "#fbbf24",
-  low: "#34d399",
-  info: "#38bdf8",
+  critical: "var(--chart-rose)",
+  high: "var(--chart-orange)",
+  medium: "var(--chart-amber)",
+  low: "var(--chart-emerald)",
+  info: "var(--chart-sky)",
 };
 
-const FALLBACK_COLORS = ["#22d3ee", "#a78bfa", "#f472b6", "#34d399", "#fbbf24", "#38bdf8"];
+const FALLBACK_COLORS = ["var(--chart-cyan)", "var(--chart-violet)", "var(--chart-rose)", "var(--chart-emerald)", "var(--chart-amber)", "var(--chart-sky)"];
 
 export function DonutChart({ data, totalLabel = "Total" }: { data: NamedCount[]; totalLabel?: string }) {
   const total = data.reduce((acc, item) => acc + item.value, 0);
@@ -96,7 +96,7 @@ export function DonutChart({ data, totalLabel = "Total" }: { data: NamedCount[];
     <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:justify-center">
       <div className="relative h-36 w-36 shrink-0">
         <svg viewBox="0 0 140 140" className="-rotate-90">
-          <circle cx="70" cy="70" r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="14" />
+          <circle cx="70" cy="70" r={radius} fill="none" stroke="rgb(var(--color-white, 255 255 255) / 0.1)" strokeWidth="14" />
           {slices.map((slice) => (
             <circle
               key={slice.name}
@@ -137,7 +137,7 @@ export function DonutChart({ data, totalLabel = "Total" }: { data: NamedCount[];
 
 export function BarList({
   data,
-  color = "#22d3ee",
+  color = "var(--chart-cyan)",
   emptyLabel = "Sin datos",
   formatValue,
 }: {
@@ -214,7 +214,7 @@ export function KpiCard({
   );
 }
 
-export function Sparkline({ values, color = "#22d3ee" }: { values: number[]; color?: string }) {
+export function Sparkline({ values, color = "var(--chart-cyan)" }: { values: number[]; color?: string }) {
   const max = Math.max(1, ...values);
   const points = values
     .map((value, index) => `${(index / Math.max(1, values.length - 1)) * 100},${28 - (value / max) * 24}`)

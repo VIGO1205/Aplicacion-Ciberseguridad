@@ -8,10 +8,13 @@ import {
   KeyRound,
   LockKeyhole,
   Mail,
+  Moon,
   ShieldCheck,
   Sparkles,
+  Sun,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { apiErrorMessage, metaApi } from "../lib/api";
 import type { DemoAccount } from "../types";
 import { Badge, Button, Input } from "../components/ui";
@@ -32,6 +35,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function LoginPage() {
   const { login } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from || "/";
@@ -68,6 +72,15 @@ export function LoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-ink-950">
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="absolute right-5 top-5 z-10 flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-300 transition hover:text-cyan-300"
+        aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+      >
+        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        {theme === "dark" ? "Modo claro" : "Modo oscuro"}
+      </button>
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-40 top-[-10%] h-[560px] w-[560px] rounded-full bg-cyan-500/[0.07] blur-[130px]" />
         <div className="absolute -right-40 bottom-[-15%] h-[600px] w-[600px] rounded-full bg-violet-500/[0.06] blur-[140px]" />

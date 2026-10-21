@@ -14,10 +14,13 @@ import {
   Settings,
   ShieldCheck,
   Siren,
+  Moon,
+  Sun,
   Users,
   X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { cn, initials, ROLE_LABEL } from "../lib/utils";
 import { Badge } from "./ui";
 
@@ -56,6 +59,7 @@ function Logo() {
 
 export function AppShell() {
   const { user, logout, hasPermission } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -178,7 +182,7 @@ export function AppShell() {
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+            className="modal-backdrop absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-label="Cerrar menú"
           />
@@ -215,6 +219,15 @@ export function AppShell() {
           </form>
 
           <div className="ml-auto flex items-center gap-2 md:ml-0">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-2 text-slate-400 transition hover:border-cyan-400/30 hover:text-cyan-300"
+              aria-label={theme === "dark" ? "Activar modo claro" : "Activar modo oscuro"}
+              title={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+            >
+              {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
             <button
               type="button"
               onClick={() => navigate("/alerts?status=pending")}

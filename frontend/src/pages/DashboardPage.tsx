@@ -178,7 +178,7 @@ export function DashboardPage() {
             <Card>
               <CardHeader title="Top IPs de origen" subtitle="Mayor volumen de alertas" />
               <div className="px-5 py-4">
-                <BarList data={data.top_source_ips} color="#22d3ee" />
+                <BarList data={data.top_source_ips} color="var(--chart-cyan)" />
               </div>
             </Card>
             <Card>
@@ -189,7 +189,7 @@ export function DashboardPage() {
                     name: item.name,
                     value: item.value,
                   }))}
-                  color="#a78bfa"
+                  color="var(--chart-violet)"
                 />
               </div>
             </Card>
@@ -208,7 +208,7 @@ export function DashboardPage() {
                         closed: "Cerrados",
                       }[item.name] || item.name,
                   }))}
-                  color="#fb923c"
+                  color="var(--chart-orange)"
                 />
                 <Button variant="ghost" size="sm" className="mt-3 w-full" onClick={() => navigate("/incidents")}>
                   Ver incidentes <ArrowRight size={13} />

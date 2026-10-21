@@ -17,6 +17,7 @@ SOC-Lite recibe alertas de Wazuh/OPNsense, las normaliza y deduplica, las enriqu
 - **Triaje híbrido**: microservicio LangChain + Ollama; fallback heurístico explicable si el LLM no está disponible.
 - **Enriquecimiento**: VirusTotal, AbuseIPDB, GeoIP, MITRE ATT&CK y contexto de activo (CMDB).
 - **Dashboard**: MTTT, MTTR, tasa de falsos positivos, cobertura, automatización, SLA, severidad, fuentes, top IPs y MITRE.
+- **Apariencia**: modos claro y oscuro desde el botón del encabezado o de acceso; la elección se guarda en este navegador.
 - **Gestión**: alertas, detalle con evidencia, acciones recomendadas, escalamiento a incidente y cierre como falso positivo.
 - **Reportes**: operacional, de gestión y de auditoría en PDF, DOCX y XLSX.
 - **Seguridad**: JWT con refresh rotado, bcrypt, RBAC de 5 roles/16 permisos, rate limit de login y cabeceras seguras.
